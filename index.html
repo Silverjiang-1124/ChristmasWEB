@@ -1,0 +1,1072 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Merry Christmas - Particle Tree</title>
+  <style>
+    html,body{margin:0;height:100%;overflow:hidden;background:#050617;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif}
+    #canvas-container{position:fixed;inset:0;z-index:1}
+    #video-input{position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;pointer-events:none}
+
+    /* loader */
+    #loader{
+      position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+      z-index:999;background:radial-gradient(1200px 800px at 50% 45%, rgba(255,223,0,0.08), rgba(0,0,0,0));
+      backdrop-filter:blur(16px);
+      color:#ffdf00;letter-spacing:2px;
+    }
+    .spinner{
+      width:52px;height:52px;border-radius:50%;
+      border:3px solid rgba(255,223,0,0.25);
+      border-top-color:rgba(255,223,0,0.95);
+      animation:spin 1s linear infinite;
+      box-shadow:0 0 28px rgba(255,223,0,0.18);
+    }
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* UI */
+    #ui{
+      position:fixed;left:50%;top:24px;transform:translateX(-50%);
+      z-index:20;pointer-events:none;text-align:center;
+      padding:14px 18px;border-radius:18px;
+      background:rgba(8,10,26,0.35);
+      border:1px solid rgba(255,223,0,0.18);
+      box-shadow:0 18px 60px rgba(0,0,0,0.35);
+      backdrop-filter:blur(12px);
+      max-width:min(760px, calc(100vw - 24px));
+    }
+    #title{
+      font-family:ui-serif, "Times New Roman", Times, serif;
+      letter-spacing:10px;font-size:44px;margin:0;
+      color:rgba(255,241,200,0.92);
+      text-shadow:0 0 28px rgba(255,223,0,0.22);
+      user-select:none;
+    }
+    #subtitle{margin-top:10px;letter-spacing:5px;opacity:.85;color:rgba(255,223,0,0.9)}
+    #status{margin-top:14px;font-weight:700;color:#ffdf00}
+
+    #controls{
+      position:fixed;left:50%;bottom:28px;transform:translateX(-50%);
+      z-index:20;
+      pointer-events:auto;
+    }
+    .btn{
+      border:1px solid rgba(255,223,0,0.55);
+      border-radius:30px;
+      padding:12px 26px;letter-spacing:2px;
+      background:rgba(8,10,26,0.35);
+      box-shadow:0 0 18px rgba(255,223,0,0.18);
+      backdrop-filter:blur(12px);
+      cursor:pointer;user-select:none;
+      color:rgba(255,241,200,0.95);
+      transition:transform .15s ease, box-shadow .15s ease, background .15s ease;
+    }
+    .btn:hover{
+      transform:translateY(-1px);
+      background:rgba(255,223,0,0.12);
+      box-shadow:0 0 30px rgba(255,223,0,0.25)
+    }
+    .btn input{display:none}
+
+    /* hand preview */
+    #hand-panel{
+      position:fixed;left:14px;bottom:14px;z-index:60;
+      width:260px;border-radius:14px;overflow:hidden;
+      border:1px solid rgba(255,223,0,0.35);
+      background:rgba(8,10,26,0.35);
+      box-shadow:0 0 26px rgba(255,223,0,0.14);
+      pointer-events:none;
+      backdrop-filter:blur(10px);
+    }
+    #hand-canvas{width:100%;display:block}
+    #hand-debug{
+      padding:7px 10px;font-size:12px;letter-spacing:1px;text-align:center;
+      color:#ffdf00;border-top:1px solid rgba(255,223,0,0.18)
+    }
+  </style>
+
+  <!-- MediaPipe -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+  <!-- Three -->
+  <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+
+<body>
+  <div id="loader">
+    <div class="spinner"></div>
+    <div style="margin-top:14px;opacity:.95;color:#ffdf00;letter-spacing:2px">INITIALIZING VISION & MAGIC...</div>
+  </div>
+
+  <div id="ui">
+    <div id="title">MERRY CHRISTMAS</div>
+    <div id="subtitle">ADD MEMORIES</div>
+    <div id="status">等待手势识别...</div>
+    <div style="margin-top:10px;font-size:12px;color:#bbb;letter-spacing:1px">
+      交互：Fist(握拳聚拢) ｜ Open(张开散开/旋转) ｜ Pinch(捏合放大照片)
+    </div>
+  </div>
+
+  <div id="controls">
+    <label class="btn">
+      上传照片 (UPLOAD PHOTOS)
+      <input type="file" id="upload-input" multiple accept="image/*" />
+    </label>
+  </div>
+
+  <div id="hand-panel">
+    <canvas id="hand-canvas" width="260" height="190"></canvas>
+    <div id="hand-debug">HAND: --</div>
+  </div>
+
+  <video id="video-input" playsinline muted></video>
+  <div id="canvas-container"></div>
+
+<script type="module">
+import * as THREE from "three";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+
+/* ---------------------------
+   CONFIG (toned down to avoid over-exposed tree)
+---------------------------- */
+const CONFIG = {
+  particleCount: 5200,
+  glowCount: 1100,
+  candyCount: 160,
+
+  treeHeight: 30,
+  treeRadius: 14,
+
+  lerpSpeed: 0.06,
+
+  /** Key: lower exposure (ACES >1.4 easily blows out) */
+  exposure: 0.9,
+
+  /** Key: tighter bloom (lower strength/radius, higher threshold) */
+  bloomStrength: 0.45,
+  bloomRadius: 0.4,
+  bloomThreshold: 0.6,
+
+  turbulenceRadius: 10.0,
+  turbulenceStrength: 0.85
+};
+
+const ENTIRE_SCENE = 0;
+const BLOOM_SCENE = 1;
+
+/* ---------------------------
+   THREE CORE
+---------------------------- */
+const container = document.getElementById("canvas-container");
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x050617);
+
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 1200);
+camera.position.set(0, 12, 50);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:false });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = CONFIG.exposure;
+container.appendChild(renderer.domElement);
+
+function makeVignetteTexture(){
+  const size = 256;
+  const cvs = document.createElement("canvas");
+  cvs.width = cvs.height = size;
+  const ctx = cvs.getContext("2d");
+  const grad = ctx.createRadialGradient(size/2, size/2, size*0.15, size/2, size/2, size*0.55);
+  grad.addColorStop(0, "rgba(255,255,255,0)");
+  grad.addColorStop(1, "rgba(0,0,0,0.75)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,size,size);
+  const tex = new THREE.CanvasTexture(cvs);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  return tex;
+}
+const vignetteTexture = makeVignetteTexture();
+
+/* ---------------------------
+   LIGHTING
+---------------------------- */
+scene.add(new THREE.AmbientLight(0x2a4cff, 0.25));
+const keyWarm = new THREE.PointLight(0xffd7a6, 3.0, 260);
+keyWarm.position.set(10, 22, 20);
+scene.add(keyWarm);
+
+const rim = new THREE.PointLight(0x88a8ff, 1.4, 260);
+rim.position.set(-26, 10, -26);
+scene.add(rim);
+
+/* ---------------------------
+   Selective Bloom
+---------------------------- */
+const renderScene = new RenderPass(scene, camera);
+
+const bloomPass = new UnrealBloomPass(
+  new THREE.Vector2(innerWidth, innerHeight),
+  CONFIG.bloomStrength,
+  CONFIG.bloomRadius,
+  CONFIG.bloomThreshold
+);
+
+const bloomComposer = new EffectComposer(renderer);
+bloomComposer.renderToScreen = false;
+bloomComposer.addPass(renderScene);
+bloomComposer.addPass(bloomPass);
+
+const finalPass = new ShaderPass(new THREE.ShaderMaterial({
+  uniforms: {
+    baseTexture: { value: null },
+    bloomTexture: { value: bloomComposer.renderTarget2.texture }
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`,
+  fragmentShader: `
+    uniform sampler2D baseTexture;
+    uniform sampler2D bloomTexture;
+    varying vec2 vUv;
+    void main() {
+      vec4 base = texture2D(baseTexture, vUv);
+      vec4 bloom = texture2D(bloomTexture, vUv);
+      gl_FragColor = base + bloom;
+    }`
+}), "baseTexture");
+finalPass.needsSwap = true;
+
+const finalComposer = new EffectComposer(renderer);
+finalComposer.addPass(renderScene);
+finalComposer.addPass(finalPass);
+
+/* ---------------------------
+   OBJECTS
+---------------------------- */
+const photoGroup = new THREE.Group();
+scene.add(photoGroup);
+
+/* ========== PARTICLE TREE (shader points) ========== */
+function makeTreeBasePositions(count){
+  const base = new Float32Array(count * 3);
+  const yNorm = new Float32Array(count);
+  const radial = new Float32Array(count);
+  const size = new Float32Array(count);
+
+  for(let i=0;i<count;i++){
+    const p = i / (count - 1);
+    const y = (p * CONFIG.treeHeight) - (CONFIG.treeHeight / 2);
+    const r = (1 - p) * CONFIG.treeRadius * (0.95 + Math.random()*0.25);
+
+    const a = p * Math.PI * 28 + (Math.random()-0.5)*0.6;
+    const x = Math.cos(a) * r + (Math.random()-0.5)*1.2;
+    const z = Math.sin(a) * r + (Math.random()-0.5)*1.2;
+
+    base[i*3+0] = x;
+    base[i*3+1] = y + (Math.random()-0.5)*0.65;
+    base[i*3+2] = z;
+
+    yNorm[i] = p;
+    radial[i] = Math.min(1.0, Math.hypot(x, z) / (CONFIG.treeRadius*1.15));
+    size[i] = 2.0 + Math.random()*2.6;
+  }
+  return { base, yNorm, radial, size };
+}
+
+const treeData = makeTreeBasePositions(CONFIG.particleCount);
+const treePos = treeData.base.slice(0);
+const treeVel = new Float32Array(CONFIG.particleCount * 3);
+
+const treeGeo = new THREE.BufferGeometry();
+treeGeo.setAttribute("position", new THREE.BufferAttribute(treePos, 3));
+treeGeo.setAttribute("aY", new THREE.BufferAttribute(treeData.yNorm, 1));
+treeGeo.setAttribute("aR", new THREE.BufferAttribute(treeData.radial, 1));
+treeGeo.setAttribute("aSize", new THREE.BufferAttribute(treeData.size, 1));
+
+function triggerScatterExplosion(){
+  const posAttr = treeGeo.getAttribute("position");
+  const arr = posAttr.array;
+  for(let i=0;i<CONFIG.particleCount;i++){
+    const idx = i*3;
+    const x = arr[idx+0];
+    const y = arr[idx+1];
+    const z = arr[idx+2];
+    const len = Math.sqrt(x*x + y*y + z*z) + 0.0001;
+    const dirx = x/len, diry = y/len, dirz = z/len;
+
+    const swirl = 0.8 + Math.random()*0.8;
+    const sx = -dirz * swirl;
+    const sz =  dirx * swirl;
+
+    const speed = 1.2 + Math.random()*1.6;
+
+    treeVel[idx+0] = dirx * speed + sx*0.4;
+    treeVel[idx+1] = diry * speed * 0.6;
+    treeVel[idx+2] = dirz * speed + sz*0.4;
+  }
+
+  const glowArr = glowGeo.getAttribute("position").array;
+  for(let i=0;i<CONFIG.glowCount;i++){
+    const idx = i*3;
+    const x = glowArr[idx+0];
+    const y = glowArr[idx+1];
+    const z = glowArr[idx+2];
+    const len = Math.sqrt(x*x + y*y + z*z) + 0.0001;
+    const dirx = x/len, diry = y/len, dirz = z/len;
+    const swirl = 0.8 + Math.random()*1.0;
+    const sx = -dirz * swirl;
+    const sz =  dirx * swirl;
+    const speed = 1.0 + Math.random()*1.4;
+    glowVel[idx+0] = dirx * speed + sx*0.45;
+    glowVel[idx+1] = diry * speed * 0.55;
+    glowVel[idx+2] = dirz * speed + sz*0.45;
+  }
+
+  for(let i=0;i<CONFIG.candyCount;i++){
+    const curr = candyCurr[i];
+    const len = curr.length() + 0.0001;
+    const dir = curr.clone().divideScalar(len);
+    const swirl = 0.9 + Math.random()*1.1;
+    const sx = -dir.z * swirl;
+    const sz =  dir.x * swirl;
+    const speed = 1.4 + Math.random()*1.2;
+    candyVel[i].set(
+      dir.x * speed + sx*0.5,
+      dir.y * speed * 0.7,
+      dir.z * speed + sz*0.5
+    );
+  }
+}
+
+function calmToTree(){
+  for(let i=0;i<treeVel.length;i++) treeVel[i]=0;
+  for(let i=0;i<glowVel.length;i++) glowVel[i]=0;
+  for(let i=0;i<candyVel.length;i++) candyVel[i].set(0,0,0);
+}
+
+const treeMat = new THREE.ShaderMaterial({
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+  uniforms: {
+    uTime: { value: 0 },
+    uFade: { value: 1.0 }
+  },
+  vertexShader: `
+    uniform float uTime;
+    attribute float aY;
+    attribute float aR;
+    attribute float aSize;
+    varying float vY;
+    varying float vR;
+
+    void main(){
+      vY = aY;
+      vR = aR;
+
+      vec3 p = position;
+
+      float sway = 0.08 + (1.0 - aY) * 0.12;
+      p.x += sin(uTime + p.y * 0.35) * sway;
+      p.z += cos(uTime + p.y * 0.35) * sway;
+
+      vec4 mv = modelViewMatrix * vec4(p, 1.0);
+      float dist = -mv.z;
+
+      gl_PointSize = aSize * (280.0 / dist);
+      gl_Position = projectionMatrix * mv;
+    }
+  `,
+  fragmentShader: `
+    varying float vY;
+    varying float vR;
+    uniform float uFade;
+
+    float hash(vec2 p){
+      return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+    }
+
+    void main(){
+      vec2 uv = gl_PointCoord - 0.5;
+      float d = length(uv);
+
+      float soft = smoothstep(0.52, 0.10, d);
+
+      /* Gaussian brightness: higher near the center */
+      float g = exp(-vR * vR * 3.4);
+
+      vec3 emerald = vec3(0.00, 0.62, 0.40);
+      vec3 champ = vec3(1.00, 0.86, 0.58);
+      float t = smoothstep(0.10, 0.95, vY);
+      vec3 col = mix(emerald, champ, t);
+
+      float tw = 0.85 + 0.25 * hash(gl_FragCoord.xy * 0.02);
+
+      /* Cap tree brightness to avoid additive+bloom blowout */
+      float baseAlpha = soft * g;
+      float heightBoost = mix(0.35, 0.75, t);
+      float alpha = clamp(baseAlpha * heightBoost * tw, 0.0, 0.45);
+      col *= 0.85 * uFade;
+      alpha *= uFade;
+      if(alpha < 0.02) discard;
+
+      gl_FragColor = vec4(col, alpha);
+    }
+  `
+});
+
+const treePoints = new THREE.Points(treeGeo, treeMat);
+treePoints.layers.set(ENTIRE_SCENE);
+scene.add(treePoints);
+
+/* ========== GLOW LIGHTS (bloom points) ========== */
+function makeGlowPositions(count){
+  const pos = new Float32Array(count * 3);
+  const size = new Float32Array(count);
+  const hue = new Float32Array(count);
+
+  for(let i=0;i<count;i++){
+    const p = i / (count - 1);
+    const y = (p * CONFIG.treeHeight) - (CONFIG.treeHeight / 2);
+    const r = (1 - p) * CONFIG.treeRadius * (0.85 + Math.random()*0.30);
+    const a = p * Math.PI * 20 + Math.random()*1.2;
+
+    pos[i*3+0] = Math.cos(a) * r + (Math.random()-0.5)*2.0;
+    pos[i*3+1] = y + (Math.random()-0.5)*1.4;
+    pos[i*3+2] = Math.sin(a) * r + (Math.random()-0.5)*2.0;
+
+    size[i] = 3.0 + Math.random()*5.5;
+
+    const rnd = Math.random();
+    hue[i] = rnd < 0.08 ? 1.0 : (rnd < 0.45 ? 0.55 : 0.25);
+  }
+  return { pos, size, hue };
+}
+
+const glowData = makeGlowPositions(CONFIG.glowCount);
+const glowBase = glowData.pos.slice(0);
+const glowPos = glowData.pos.slice(0);
+const glowVel = new Float32Array(CONFIG.glowCount * 3);
+const glowGeo = new THREE.BufferGeometry();
+glowGeo.setAttribute("position", new THREE.BufferAttribute(glowPos, 3));
+glowGeo.setAttribute("aSize", new THREE.BufferAttribute(glowData.size, 1));
+glowGeo.setAttribute("aHue", new THREE.BufferAttribute(glowData.hue, 1));
+
+const glowMat = new THREE.ShaderMaterial({
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+  uniforms: {
+    uTime: { value: 0 },
+    uFade: { value: 1.0 }
+  },
+  vertexShader: `
+    uniform float uTime;
+    attribute float aSize;
+    attribute float aHue;
+    varying float vHue;
+
+    void main(){
+      vHue = aHue;
+      vec3 p = position;
+
+      p.x += sin(uTime*1.2 + p.y*0.25) * 0.05;
+      p.z += cos(uTime*1.2 + p.y*0.25) * 0.05;
+
+      vec4 mv = modelViewMatrix * vec4(p, 1.0);
+      float dist = -mv.z;
+      gl_PointSize = aSize * (320.0 / dist);
+      gl_Position = projectionMatrix * mv;
+    }
+  `,
+  fragmentShader: `
+    varying float vHue;
+    uniform float uFade;
+
+    void main(){
+      vec2 uv = gl_PointCoord - 0.5;
+      float d = length(uv);
+      float core = smoothstep(0.40, 0.00, d);
+      float halo = smoothstep(0.75, 0.10, d);
+
+      vec3 gold = vec3(1.0, 0.82, 0.28);
+      vec3 warmWhite = vec3(1.0, 0.95, 0.80);
+      vec3 red = vec3(1.0, 0.22, 0.22);
+
+      vec3 col = mix(gold, warmWhite, step(0.40, vHue));
+      col = mix(col, red, step(0.90, vHue));
+
+      /* Fade edges to reduce large blurred squares */
+      float alpha = core * 0.75 + halo * 0.12;
+      col *= uFade;
+      alpha *= uFade;
+      if(alpha < 0.02) discard;
+
+      gl_FragColor = vec4(col, alpha);
+    }
+  `
+});
+
+const glowPoints = new THREE.Points(glowGeo, glowMat);
+glowPoints.layers.set(BLOOM_SCENE);
+scene.add(glowPoints);
+
+/* ========== TOP STAR (bloom) ========== */
+const starTop = new THREE.Mesh(
+  new THREE.IcosahedronGeometry(1.35, 1),
+  new THREE.MeshStandardMaterial({
+    color: 0xffd700,
+    roughness: 0.20,
+    metalness: 0.92,
+    emissive: 0xffd700,
+    emissiveIntensity: 1.25
+  })
+);
+starTop.position.set(0, CONFIG.treeHeight/2 + 2.2, 0);
+starTop.layers.enable(BLOOM_SCENE);
+scene.add(starTop);
+
+/* ========== CANDIES ========== */
+const candyGeo = new THREE.SphereGeometry(0.35, 10, 10);
+const candyMat = new THREE.MeshStandardMaterial({
+  color: 0xffffff,
+  roughness: 0.35,
+  metalness: 0.35,
+  emissive: 0x2a0a0a,
+  emissiveIntensity: 0.25
+});
+const candies = new THREE.InstancedMesh(candyGeo, candyMat, CONFIG.candyCount);
+candies.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+candies.layers.set(ENTIRE_SCENE);
+scene.add(candies);
+
+const dummy = new THREE.Object3D();
+const candyTargets = [];
+const candyChaos = [];
+const candyCurr = [];
+const candyVel = [];
+{
+  const col = new THREE.Color();
+  for(let i=0;i<CONFIG.candyCount;i++){
+    const p = i/CONFIG.candyCount;
+    const a = p*Math.PI*16;
+    const r = (1-p)*CONFIG.treeRadius*1.0;
+
+    const pos = new THREE.Vector3(
+      Math.cos(a)*r + (Math.random()-0.5)*1.1,
+      p*CONFIG.treeHeight - CONFIG.treeHeight/2 + (Math.random()-0.5)*5.0,
+      Math.sin(a)*r + (Math.random()-0.5)*1.1
+    );
+  candyTargets.push(pos);
+
+  const chaos = new THREE.Vector3(
+    (Math.random()-0.5)*90,
+    (Math.random()-0.5)*90,
+    (Math.random()-0.5)*90
+  );
+  candyChaos.push(chaos);
+  candyCurr.push(chaos.clone());
+  candyVel.push(new THREE.Vector3());
+
+    col.setHex(i%2===0 ? 0xff2a2a : 0xffffff);
+    candies.setColorAt(i, col);
+  }
+  candies.instanceColor.needsUpdate = true;
+}
+
+/* ---------------------------
+   APP STATE + HAND TURBULENCE
+---------------------------- */
+let APP_STATE = "TREE";
+let cameraAngle = 0;
+let prevHandX = 0.5;
+let zoomPhotoIndex = -1;
+let prevAppState = APP_STATE;
+let lastExplosionTime = 0;
+
+const statusEl = document.getElementById("status");
+const targetScaleZoom = new THREE.Vector3(2.6,2.6,2.6);
+const targetScaleTree = new THREE.Vector3(0.65,0.65,0.65);
+const targetScaleScatter = new THREE.Vector3(1.0,1.0,1.0);
+
+const handWorld = new THREE.Vector3(0, 5, 0);
+let handHasSignal = false;
+
+/* ---------------------------
+   PHOTO UPLOAD
+---------------------------- */
+function createPhoto(texture){
+  const aspect = texture.image.width / texture.image.height;
+  const w = 6.5;
+  const h = w / aspect;
+
+  const plane = new THREE.Mesh(
+    new THREE.PlaneGeometry(w, h),
+    new THREE.MeshBasicMaterial({
+      map: texture,
+      toneMapped: false,
+      transparent: true,
+      opacity: 1.0
+    })
+  );
+  plane.material.depthTest = false;
+  plane.material.depthWrite = false;
+  plane.renderOrder = 999;
+  plane.layers.set(ENTIRE_SCENE);
+
+  const vignette = new THREE.Mesh(
+    new THREE.PlaneGeometry(w, h),
+    new THREE.MeshBasicMaterial({
+      map: vignetteTexture,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+      renderOrder: 1000,
+      blending: THREE.MultiplyBlending
+    })
+  );
+  vignette.position.z = 0.02;
+  plane.add(vignette);
+
+  const frame = new THREE.Mesh(
+    new THREE.BoxGeometry(w+1.0, h+1.0, 0.5),
+    new THREE.MeshPhysicalMaterial({
+      color: 0x8f6f00,
+      roughness: 0.35,
+      metalness: 0.8,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.15,
+      emissive: 0x8f6f00,
+      emissiveIntensity: 0.35
+    })
+  );
+  frame.position.z = -0.25;
+  frame.material.depthTest = false;
+  frame.material.depthWrite = false;
+  frame.renderOrder = 999;
+  frame.layers.set(ENTIRE_SCENE);
+  plane.add(frame);
+
+  plane.position.set(
+    (Math.random()-0.5)*50,
+    (Math.random()-0.5)*40,
+    (Math.random()-0.5)*50
+  );
+
+  plane.userData = {
+    treePos: new THREE.Vector3(
+      (Math.random()-0.5)*12,
+      (Math.random()*20)-8,
+      (Math.random()-0.5)*12
+    ),
+    scatterPos: plane.position.clone()
+  };
+
+  photoGroup.add(plane);
+}
+
+document.getElementById("upload-input").addEventListener("change", (e)=>{
+  const files = e.target.files;
+  if(!files || files.length===0) return;
+
+  for(const f of files){
+    const url = URL.createObjectURL(f);
+    const loader = new THREE.TextureLoader();
+    loader.load(url, (tex)=>{
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      tex.minFilter = THREE.LinearMipmapLinearFilter;
+      tex.magFilter = THREE.LinearFilter;
+      tex.needsUpdate = true;
+      createPhoto(tex);
+    });
+  }
+});
+
+/* ---------------------------
+   MediaPipe Hands + Preview
+---------------------------- */
+const videoEl = document.getElementById("video-input");
+const handCanvas = document.getElementById("hand-canvas");
+const hctx = handCanvas.getContext("2d");
+const handDebug = document.getElementById("hand-debug");
+
+function drawHandPreview(results){
+  const w = handCanvas.width, h = handCanvas.height;
+
+  try{
+    hctx.drawImage(videoEl, 0, 0, w, h);
+    hctx.fillStyle = "rgba(0,0,0,0.35)";
+    hctx.fillRect(0,0,w,h);
+  }catch{
+    hctx.clearRect(0,0,w,h);
+    hctx.fillStyle="#000"; hctx.fillRect(0,0,w,h);
+  }
+
+  const lm = results.multiHandLandmarks?.[0];
+  if(!lm) return;
+
+  hctx.strokeStyle="rgba(255,223,0,0.95)";
+  hctx.lineWidth=2;
+  const chains=[[0,1,2,3,4],[0,5,6,7,8],[0,9,10,11,12],[0,13,14,15,16],[0,17,18,19,20]];
+  for(const ch of chains){
+    hctx.beginPath();
+    ch.forEach((idx,i)=>{
+      const p=lm[idx];
+      const x=p.x*w, y=p.y*h;
+      if(i===0) hctx.moveTo(x,y); else hctx.lineTo(x,y);
+    });
+    hctx.stroke();
+  }
+  for(const p of lm){
+    hctx.beginPath();
+    hctx.arc(p.x*w,p.y*h,3.6,0,Math.PI*2);
+    hctx.fillStyle="rgba(255,90,90,0.95)";
+    hctx.fill();
+  }
+}
+
+function detectGesture(lm){
+  const wrist = lm[0];
+  const thumbTip = lm[4];
+  const indexTip = lm[8];
+  const pinkyTip = lm[20];
+
+  let avg = 0;
+  [8,12,16,20].forEach(i=>{
+    avg += Math.hypot(lm[i].x - wrist.x, lm[i].y - wrist.y);
+  });
+  avg /= 4;
+
+  const pinch = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
+  const openDist = Math.hypot(indexTip.x - pinkyTip.x, indexTip.y - pinkyTip.y);
+
+  const isOtherFingersBent = avg > 0.10 && avg < 0.32;
+  const isPinch = (pinch < 0.08) && (openDist > 0.12) && isOtherFingersBent;
+  const isFist = (avg < 0.22) && (openDist < 0.17) && (pinch > 0.12);
+  const isOpen = avg > 0.25 && openDist > 0.21;
+
+  const handX = wrist.x;
+
+  handWorld.set(
+    (wrist.x - 0.5) * 28.0,
+    (0.5 - wrist.y) * 20.0 + 6.0,
+    0
+  );
+  handHasSignal = true;
+
+  const lastState = APP_STATE;
+  if(isPinch && photoGroup.children.length>0){
+    if(APP_STATE!=="ZOOM"){
+      APP_STATE="ZOOM";
+      zoomPhotoIndex = Math.floor(Math.random()*photoGroup.children.length);
+      statusEl.textContent="ZOOM | pinch to grab & zoom photo";
+      statusEl.style.color="#ff8888";
+    }
+  }else if(APP_STATE==="ZOOM" && pinch>0.08){
+    APP_STATE="SCATTER";
+    zoomPhotoIndex=-1;
+    statusEl.textContent="SCATTER | open hand, move left/right to orbit";
+    statusEl.style.color="#ffdf00";
+  }else if(isFist){
+    APP_STATE="TREE";
+    statusEl.textContent="TREE | make a fist to form the tree";
+    statusEl.style.color="#88ff88";
+    calmToTree();
+  }else if(isOpen){
+    if(APP_STATE!=="ZOOM"){
+      APP_STATE="SCATTER";
+      statusEl.textContent="SCATTER | open hand, move left/right to orbit";
+      statusEl.style.color="#ffdf00";
+      const deltaX = THREE.MathUtils.clamp(handX - prevHandX, -0.08, 0.08);
+      cameraAngle += deltaX * 6.0;
+    }
+  }
+
+  if(lastState!=="SCATTER" && APP_STATE==="SCATTER"){
+    const now = performance.now();
+    if(now - lastExplosionTime > 800){
+      triggerScatterExplosion();
+      lastExplosionTime = now;
+    }
+  }
+  prevAppState = APP_STATE;
+  prevHandX = handX;
+  handDebug.textContent = `HAND:${APP_STATE} | avg:${avg.toFixed(3)} pinch:${pinch.toFixed(3)}`;
+}
+
+function setupMediaPipe(){
+  const hands = new Hands({
+    locateFile: (file)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+  });
+
+  hands.setOptions({
+    maxNumHands: 1,
+    modelComplexity: 1,
+    minDetectionConfidence: 0.7,
+    minTrackingConfidence: 0.6
+  });
+
+  hands.onResults((results)=>{
+    drawHandPreview(results);
+
+    if(results.multiHandLandmarks && results.multiHandLandmarks.length>0){
+      detectGesture(results.multiHandLandmarks[0]);
+    }else{
+      handHasSignal = false;
+      handDebug.textContent = "HAND: NOT DETECTED";
+    }
+  });
+
+  const cam = new Camera(videoEl, {
+    onFrame: async ()=>{ await hands.send({image: videoEl}); },
+    width: 640,
+    height: 480
+  });
+
+  cam.start().then(()=>{
+    const loader=document.getElementById("loader");
+    loader.style.opacity=0;
+    setTimeout(()=>loader.remove(), 900);
+  }).catch(()=>{
+    const loader=document.getElementById("loader");
+    loader.innerHTML = `<div style="text-align:center;max-width:520px;line-height:1.6">
+      <div style="font-size:18px;margin-bottom:10px;color:#ffdf00">无法启动摄像头 / 手势识别</div>
+      <div style="color:#bbb;letter-spacing:1px">请允许浏览器摄像头权限，或使用 HTTPS / localhost 运行。</div>
+      <div style="margin-top:14px;color:#ffdf00;opacity:.9">你仍可上传照片并观看粒子树效果。</div>
+    </div>`;
+  });
+}
+setupMediaPipe();
+
+/* ---------------------------
+   Updates
+---------------------------- */
+function updateCandies(time){
+  for(let i=0;i<CONFIG.candyCount;i++){
+    const target = (APP_STATE==="TREE") ? candyTargets[i] : candyChaos[i];
+    const curr = candyCurr[i];
+    const vel = candyVel[i];
+    const dir = target.clone().sub(curr).multiplyScalar(0.06);
+    vel.add(dir);
+    const damp = (APP_STATE==="SCATTER") ? 0.95 : 0.9;
+    vel.multiplyScalar(damp);
+    curr.add(vel);
+
+    dummy.position.copy(curr);
+
+    if(APP_STATE==="TREE"){
+      dummy.scale.set(1,1,1);
+      dummy.rotation.y = time*0.15 + i*0.09;
+      dummy.rotation.x = time*0.10;
+      dummy.rotation.z = time*0.07;
+    }else{
+      dummy.scale.set(1,1,1);
+      dummy.rotation.y = time*0.35 + i*0.06;
+      dummy.rotation.x = time*0.15;
+      dummy.rotation.z = 0;
+    }
+
+    dummy.updateMatrix();
+    candies.setMatrixAt(i, dummy.matrix);
+  }
+  candies.instanceMatrix.needsUpdate = true;
+}
+
+function updateTreeParticles(time){
+  const posAttr = treeGeo.getAttribute("position");
+  const arr = posAttr.array;
+
+  for(let i=0;i<CONFIG.particleCount;i++){
+    const idx = i*3;
+
+    const bx = treeData.base[idx+0];
+    const by = treeData.base[idx+1];
+    const bz = treeData.base[idx+2];
+
+    let tx=bx, ty=by, tz=bz;
+
+    if(APP_STATE==="SCATTER"){
+      const push = 1.0 + 1.35 * Math.sin((i*0.013) + time*0.35);
+      tx = bx * push * 2.2;
+      ty = by + Math.sin(time*0.8 + i*0.01) * 0.6;
+      tz = bz * push * 2.2;
+    }
+
+    const cx = arr[idx+0], cy = arr[idx+1], cz = arr[idx+2];
+    const vx = treeVel[idx+0], vy = treeVel[idx+1], vz = treeVel[idx+2];
+
+    let nvx = vx + (tx - cx) * 0.010;
+    let nvy = vy + (ty - cy) * 0.010;
+    let nvz = vz + (tz - cz) * 0.010;
+
+    if(handHasSignal && APP_STATE!=="ZOOM"){
+      const dx = cx - handWorld.x;
+      const dy = cy - handWorld.y;
+      const dz = cz - handWorld.z;
+      const d = Math.sqrt(dx*dx + dy*dy + dz*dz);
+
+      if(d < CONFIG.turbulenceRadius){
+        const s = (1.0 - d / CONFIG.turbulenceRadius) * CONFIG.turbulenceStrength;
+
+        nvx += (-dz) * s * 0.012;
+        nvz += ( dx) * s * 0.012;
+        nvy += Math.sin(time*2.1 + i*0.02) * s * 0.006;
+      }
+    }
+
+    nvx *= APP_STATE==="SCATTER" ? 0.96 : 0.92;
+    nvy *= APP_STATE==="SCATTER" ? 0.96 : 0.92;
+    nvz *= APP_STATE==="SCATTER" ? 0.96 : 0.92;
+
+    arr[idx+0] = cx + nvx;
+    arr[idx+1] = cy + nvy;
+    arr[idx+2] = cz + nvz;
+
+    treeVel[idx+0] = nvx;
+    treeVel[idx+1] = nvy;
+    treeVel[idx+2] = nvz;
+  }
+
+  posAttr.needsUpdate = true;
+
+  treeMat.uniforms.uTime.value = time;
+  glowMat.uniforms.uTime.value = time;
+}
+
+function updateGlowPositions(time){
+  const arr = glowGeo.getAttribute("position").array;
+  for(let i=0;i<CONFIG.glowCount;i++){
+    const idx = i*3;
+    const bx = glowBase[idx+0];
+    const by = glowBase[idx+1];
+    const bz = glowBase[idx+2];
+
+    let tx = bx, ty = by, tz = bz;
+    if(APP_STATE==="SCATTER"){
+      const push = 1.0 + 1.15 * Math.sin((i*0.021) + time*0.28);
+      tx = bx * push * 2.0;
+      ty = by + Math.sin(time*0.9 + i*0.015) * 0.5;
+      tz = bz * push * 2.0;
+    }
+
+    const cx = arr[idx+0], cy = arr[idx+1], cz = arr[idx+2];
+    const vx = glowVel[idx+0], vy = glowVel[idx+1], vz = glowVel[idx+2];
+
+    let nvx = vx + (tx - cx) * 0.012;
+    let nvy = vy + (ty - cy) * 0.012;
+    let nvz = vz + (tz - cz) * 0.012;
+
+    const damp = (APP_STATE==="SCATTER") ? 0.965 : 0.92;
+    nvx *= damp; nvy *= damp; nvz *= damp;
+
+    arr[idx+0] = cx + nvx;
+    arr[idx+1] = cy + nvy;
+    arr[idx+2] = cz + nvz;
+
+    glowVel[idx+0] = nvx;
+    glowVel[idx+1] = nvy;
+    glowVel[idx+2] = nvz;
+  }
+  glowGeo.attributes.position.needsUpdate = true;
+}
+
+/* ---------------------------
+   ANIMATE
+---------------------------- */
+function animate(){
+  requestAnimationFrame(animate);
+  const t = Date.now()*0.001;
+
+  const radius = 48;
+  if(APP_STATE==="SCATTER"){
+    camera.position.x = radius * Math.sin(t*0.12 + cameraAngle);
+    camera.position.z = radius * Math.cos(t*0.12 + cameraAngle);
+  }else{
+    camera.position.x = radius * Math.sin(t*0.07);
+    camera.position.z = radius * Math.cos(t*0.07);
+  }
+  camera.lookAt(0, 5, 0);
+
+  updateTreeParticles(t);
+  updateCandies(t);
+  updateGlowPositions(t);
+
+  starTop.scale.setScalar(1.0 + 0.06*Math.sin(t*2.0));
+  starTop.rotation.y = t * 0.6;
+
+  photoGroup.children.forEach((mesh, idx)=>{
+    let targetPos, targetScale;
+
+    if(APP_STATE==="ZOOM" && idx===zoomPhotoIndex){
+      const dir = new THREE.Vector3();
+      camera.getWorldDirection(dir);
+      targetPos = camera.position.clone().add(dir.multiplyScalar(18));
+      targetScale = targetScaleZoom;
+      mesh.lookAt(camera.position);
+    }else if(APP_STATE==="TREE"){
+      targetPos = mesh.userData.treePos;
+      targetScale = targetScaleTree;
+      mesh.rotation.y = t*0.25;
+      mesh.rotation.x = Math.sin(t*0.6 + idx)*0.08;
+    }else{
+      targetPos = mesh.userData.scatterPos;
+      targetScale = targetScaleScatter;
+      mesh.lookAt(camera.position);
+    }
+
+    mesh.position.lerp(targetPos, CONFIG.lerpSpeed);
+    mesh.scale.lerp(targetScale, CONFIG.lerpSpeed);
+  });
+
+  const fadeTarget = (APP_STATE === "ZOOM") ? 0.05 : 1.0;
+  treeMat.uniforms.uFade.value += (fadeTarget - treeMat.uniforms.uFade.value) * 0.12;
+  glowMat.uniforms.uFade.value += (fadeTarget - glowMat.uniforms.uFade.value) * 0.12;
+
+  const targetExposure = (APP_STATE === "ZOOM") ? 0.6 : CONFIG.exposure;
+  renderer.toneMappingExposure += (targetExposure - renderer.toneMappingExposure) * 0.06;
+
+  const targetBloom = (APP_STATE === "ZOOM") ? 0.12 : CONFIG.bloomStrength;
+  bloomPass.strength += (targetBloom - bloomPass.strength) * 0.12;
+  const targetBloomRadius = (APP_STATE === "ZOOM") ? 0.2 : CONFIG.bloomRadius;
+  bloomPass.radius += (targetBloomRadius - bloomPass.radius) * 0.12;
+  const targetBloomThreshold = (APP_STATE === "ZOOM") ? 0.8 : CONFIG.bloomThreshold;
+  bloomPass.threshold += (targetBloomThreshold - bloomPass.threshold) * 0.12;
+
+  camera.layers.set(BLOOM_SCENE);
+  bloomComposer.render();
+  camera.layers.set(ENTIRE_SCENE);
+  finalComposer.render();
+}
+animate();
+
+/* ---------------------------
+   Resize
+---------------------------- */
+addEventListener("resize", ()=>{
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  bloomComposer.setSize(innerWidth, innerHeight);
+  finalComposer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
