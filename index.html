@@ -601,6 +601,13 @@ let zoomPhotoIndex = -1;
 let prevAppState = APP_STATE;
 let lastExplosionTime = 0;
 
+// 启动时自动加载的本地图片（相对 index.html 的路径，放在 ./img/ 文件夹下）
+const INITIAL_PHOTO_PATHS = [
+  // 示例：把你的图片放进 img/，然后在这里填上文件名
+  // "img/photo1.jpg",
+  // "img/photo2.png"
+];
+
 const statusEl = document.getElementById("status");
 const targetScaleZoom = new THREE.Vector3(2.6,2.6,2.6);
 const targetScaleTree = new THREE.Vector3(0.65,0.65,0.65);
@@ -682,6 +689,29 @@ function createPhoto(texture){
   photoGroup.add(plane);
 }
 
+function loadInitialPhotos(){
+  if(!INITIAL_PHOTO_PATHS || INITIAL_PHOTO_PATHS.length === 0) return;
+
+  const loader = new THREE.TextureLoader();
+  INITIAL_PHOTO_PATHS.forEach((path)=>{
+    loader.load(
+      path,
+      (tex)=>{
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        tex.minFilter = THREE.LinearMipmapLinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        tex.needsUpdate = true;
+        createPhoto(tex);
+      },
+      undefined,
+      ()=>{
+        // 某张默认图片不存在时忽略
+      }
+    );
+  });
+}
+
 document.getElementById("upload-input").addEventListener("change", (e)=>{
   const files = e.target.files;
   if(!files || files.length===0) return;
@@ -699,6 +729,9 @@ document.getElementById("upload-input").addEventListener("change", (e)=>{
     });
   }
 });
+
+// 页面加载时，自动从 img/ 文件夹读取默认照片
+loadInitialPhotos();
 
 /* ---------------------------
    MediaPipe Hands + Preview
