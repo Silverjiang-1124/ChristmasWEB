@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>Merry Christmas �?Particle Tree</title>
+  <title>Merry Christmas �?Particle Tree</title>
   <style>
     html,body{margin:0;height:100%;overflow:hidden;background:#050617;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif}
     #canvas-container{position:fixed;inset:0;z-index:1}
@@ -105,15 +105,15 @@
 <body>
   <div id="loader">
     <div class="spinner"></div>
-    <div style="margin-top:14px;opacity:.95;color:#ffdf00;letter-spacing:2px">INITIALIZING VISION & MAGIC�?/div>
+    <div style="margin-top:14px;opacity:.95;color:#ffdf00;letter-spacing:2px">INITIALIZING VISION & MAGIC�?/div>
   </div>
 
   <div id="ui">
     <div id="title">MERRY CHRISTMAS</div>
     <div id="subtitle">ADD MEMORIES</div>
-    <div id="status">等待手势识别�?/div>
+    <div id="status">等待手势识别�?/div>
     <div style="margin-top:10px;font-size:12px;color:#bbb;letter-spacing:1px">
-      交互：✊ 握拳(聚拢) �?🖐 张开(散开+旋转) �?🤏 捏合(抓取照片放大)
+      交互：✊ 握拳(聚拢) �?🖐 张开(散开+旋转) �?🤏 捏合(抓取照片放大)
     </div>
   </div>
 
@@ -140,7 +140,7 @@ import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js"
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 
 /* ---------------------------
-   CONFIG（已调暗：避免主题灯光过曝看不清树形�?
+   CONFIG（已调暗：避免主题灯光过曝看不清树形�?
 ---------------------------- */
 const CONFIG = {
   particleCount: 5200,
@@ -152,10 +152,10 @@ const CONFIG = {
 
   lerpSpeed: 0.06,
 
-  /** 关键：降低曝光（ACES �?1.4+ 很容易过曝） */
+  /** 关键：降低曝光（ACES �?1.4+ 很容易过曝） */
   exposure: 0.9,
 
-  /** 关键：收�?Bloom（强�?半径降，阈值升�?*/
+  /** 关键：收�?Bloom（强�?半径降，阈值升�?*/
   bloomStrength: 0.45,
   bloomRadius: 0.4,
   bloomThreshold: 0.6,
@@ -329,7 +329,7 @@ const treeMat = new THREE.ShaderMaterial({
 
       float soft = smoothstep(0.52, 0.10, d);
 
-      /* 高斯亮度：越靠中心越�?*/
+      /* 高斯亮度：越靠中心越�?*/
       float g = exp(-vR * vR * 3.4);
 
       vec3 emerald = vec3(0.00, 0.62, 0.40);
@@ -427,7 +427,7 @@ const glowMat = new THREE.ShaderMaterial({
       vec3 col = mix(gold, warmWhite, step(0.40, vHue));
       col = mix(col, red, step(0.90, vHue));
 
-      /* 关键：收边，减少大面积雾化发�?*/
+      /* 关键：收边，减少大面积雾化发�?*/
       float alpha = core * 0.75 + halo * 0.12;
       if(alpha < 0.02) discard;
 
@@ -667,16 +667,16 @@ function detectGesture(lm){
   }else if(APP_STATE==="ZOOM" && pinch>0.08){
     APP_STATE="SCATTER";
     zoomPhotoIndex=-1;
-    statusEl.textContent="🖐 散开 + 手左右移动旋�?;
+    statusEl.textContent="🖐 散开 + 手左右移动旋�?;
     statusEl.style.color="#ffdf00";
   }else if(isFist){
     APP_STATE="TREE";
-    statusEl.textContent="�?聚拢成圣诞树 (TREE)";
+    statusEl.textContent="�?聚拢成圣诞树 (TREE)";
     statusEl.style.color="#88ff88";
   }else if(isOpen){
     if(APP_STATE!=="ZOOM"){
       APP_STATE="SCATTER";
-      statusEl.textContent="🖐 散开 + 手左右移动旋�?;
+      statusEl.textContent="🖐 散开 + 手左右移动旋�?;
       statusEl.style.color="#ffdf00";
       cameraAngle += (handX - prevHandX) * 10;
     }
@@ -722,9 +722,9 @@ function setupMediaPipe(){
   }).catch(()=>{
     const loader=document.getElementById("loader");
     loader.innerHTML = `<div style="text-align:center;max-width:520px;line-height:1.6">
-      <div style="font-size:18px;margin-bottom:10px;color:#ffdf00">无法启动摄像�?/ 手势识别</div>
-      <div style="color:#bbb;letter-spacing:1px">请允许浏览器摄像头权限，或使�?HTTPS / localhost 运行�?/div>
-      <div style="margin-top:14px;color:#ffdf00;opacity:.9">你仍可上传照片并观看粒子树效果�?/div>
+      <div style="font-size:18px;margin-bottom:10px;color:#ffdf00">无法启动摄像�?/ 手势识别</div>
+      <div style="color:#bbb;letter-spacing:1px">请允许浏览器摄像头权限，或使�?HTTPS / localhost 运行�?/div>
+      <div style="margin-top:14px;color:#ffdf00;opacity:.9">你仍可上传照片并观看粒子树效果�?/div>
     </div>`;
   });
 }
