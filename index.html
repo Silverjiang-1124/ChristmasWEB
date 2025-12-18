@@ -898,6 +898,18 @@ function detectGesture(lm){
 }
 
 function setupMediaPipe(){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    const loader = document.getElementById("loader");
+    loader.innerHTML = `<div style="text-align:center;max-width:520px;line-height:1.6">
+      <div style="font-size:18px;margin-bottom:10px;color:#ffdf00">当前环境无法访问摄像头</div>
+      <div style="color:#bbb;letter-spacing:1px">
+        请使用支持摄像头的现代浏览器，并通过 <b>HTTPS</b> 或本机 <b>localhost</b> 打开本页面。
+      </div>
+      <div style="margin-top:14px;color:#ffdf00;opacity:.9">你仍可上传照片并观看粒子树效果。</div>
+    </div>`;
+    return;
+  }
+
   const hands = new Hands({
     locateFile: (file)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
   });
@@ -923,14 +935,16 @@ function setupMediaPipe(){
   const cam = new Camera(videoEl, {
     onFrame: async ()=>{ await hands.send({image: videoEl}); },
     width: 640,
-    height: 480
+    height: 480,
+    facingMode: "user"
   });
 
   cam.start().then(()=>{
     const loader=document.getElementById("loader");
     loader.style.opacity=0;
     setTimeout(()=>loader.remove(), 900);
-  }).catch(()=>{
+  }).catch((err)=>{
+    console.error("Camera start failed:", err);
     const loader=document.getElementById("loader");
     loader.innerHTML = `<div style="text-align:center;max-width:520px;line-height:1.6">
       <div style="font-size:18px;margin-bottom:10px;color:#ffdf00">无法启动摄像头 / 手势识别</div>
@@ -939,7 +953,25 @@ function setupMediaPipe(){
     </div>`;
   });
 }
-setupMediaPipe();
+
+function isMobile(){
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+if(isMobile()){
+  const loader = document.getElementById("loader");
+  loader.innerHTML = `<div style="text-align:center;max-width:520px;line-height:1.6;cursor:pointer">
+    <div style="font-size:18px;margin-bottom:10px;color:#ffdf00">点此启用摄像头 & 手势识别</div>
+    <div style="color:#bbb;letter-spacing:1px">已通过 HTTPS 打开，可安全使用手机前置摄像头。</div>
+    <div style="margin-top:14px;color:#ffdf00;opacity:.9">如果不需要，可直接上传照片体验粒子圣诞树。</div>
+  </div>`;
+  loader.addEventListener("click", ()=>{
+    loader.textContent = "INITIALIZING VISION & MAGIC...";
+    setupMediaPipe();
+  }, { once:true });
+}else{
+  setupMediaPipe();
+}
 
 /* ---------------------------
    Updates
