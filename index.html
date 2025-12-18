@@ -47,7 +47,7 @@
     #status{margin-top:14px;font-weight:700;color:#ffdf00}
 
     #controls{
-      position:fixed;left:50%;bottom:28px;transform:translateX(-50%);
+      position:fixed;left:50%;bottom:14px;transform:translateX(-50%);
       z-index:20;
       pointer-events:auto;
     }
@@ -68,6 +68,17 @@
       box-shadow:0 0 30px rgba(255,223,0,0.25)
     }
     .btn input{display:none}
+
+    /* 手势预览开关按钮（右下角） */
+    #hand-toggle{
+      position:fixed;
+      right:14px;
+      bottom:14px;
+      z-index:70;
+      padding:8px 16px;
+      font-size:12px;
+      letter-spacing:1px;
+    }
 
     /* hand preview */
     #hand-panel{
@@ -110,7 +121,7 @@
 
   <div id="ui">
     <div id="title">MERRY CHRISTMAS</div>
-    <div id="subtitle">ADD MEMORIES</div>
+    <div id="subtitle">熊衍红，圣诞快乐！</div>
     <div id="status">等待手势识别...</div>
     <div style="margin-top:10px;font-size:12px;color:#bbb;letter-spacing:1px">
       交互：Fist(握拳聚拢) ｜ Open(张开散开/旋转) ｜ Pinch(捏合放大照片)
@@ -133,6 +144,8 @@
     <canvas id="hand-canvas" width="260" height="190"></canvas>
     <div id="hand-debug">HAND: --</div>
   </div>
+
+  <button id="hand-toggle" class="btn" type="button">隐藏预览</button>
 
   <video id="video-input" playsinline muted></video>
   <div id="canvas-container"></div>
@@ -666,6 +679,10 @@ const INITIAL_PHOTO_PATHS = [
   "img/6.jpg",
   "img/7.jpg",
   "img/8.jpg",
+  "img/9.jpg",
+  "img/10.jpg",
+  "img/11.jpg",
+  "img/12.jpg"
 ];
 
 const statusEl = document.getElementById("status");
@@ -834,6 +851,17 @@ const videoEl = document.getElementById("video-input");
 const handCanvas = document.getElementById("hand-canvas");
 const hctx = handCanvas.getContext("2d");
 const handDebug = document.getElementById("hand-debug");
+const handPanelEl = document.getElementById("hand-panel");
+const handToggleBtn = document.getElementById("hand-toggle");
+let handPanelVisible = true;
+
+if(handToggleBtn && handPanelEl){
+  handToggleBtn.addEventListener("click", ()=>{
+    handPanelVisible = !handPanelVisible;
+    handPanelEl.style.display = handPanelVisible ? "" : "none";
+    handToggleBtn.textContent = handPanelVisible ? "隐藏预览" : "显示预览";
+  });
+}
 
 function drawHandPreview(results){
   const w = handCanvas.width, h = handCanvas.height;
