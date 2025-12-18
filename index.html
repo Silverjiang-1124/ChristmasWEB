@@ -122,6 +122,11 @@
       上传照片 (UPLOAD PHOTOS)
       <input type="file" id="upload-input" multiple accept="image/*" />
     </label>
+    <div id="manual-controls" style="margin-top:12px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button type="button" class="btn" id="btn-tree"    style="padding:8px 18px;font-size:12px">收起圣诞树 (TREE)</button>
+      <button type="button" class="btn" id="btn-scatter" style="padding:8px 18px;font-size:12px">展开圣诞树 (SCATTER)</button>
+      <button type="button" class="btn" id="btn-zoom"    style="padding:8px 18px;font-size:12px">展示照片 (ZOOM)</button>
+    </div>
   </div>
 
   <div id="hand-panel">
@@ -780,6 +785,45 @@ document.getElementById("upload-input").addEventListener("change", (e)=>{
   }
 });
 
+// 手动控制按钮：在无法使用摄像头时也能体验
+const btnTree    = document.getElementById("btn-tree");
+const btnScatter = document.getElementById("btn-scatter");
+const btnZoom    = document.getElementById("btn-zoom");
+
+if(btnTree){
+  btnTree.addEventListener("click", ()=>{
+    APP_STATE = "TREE";
+    zoomPhotoIndex = -1;
+    calmToTree();
+    statusEl.textContent = "TREE | make a fist to form the tree";
+    statusEl.style.color = "#88ff88";
+  });
+}
+
+if(btnScatter){
+  btnScatter.addEventListener("click", ()=>{
+    const last = APP_STATE;
+    APP_STATE = "SCATTER";
+    zoomPhotoIndex = -1;
+    statusEl.textContent = "SCATTER | open hand, move left/right to orbit";
+    statusEl.style.color = "#ffdf00";
+    // 模拟从 TREE 进入 SCATTER 的一次爆炸
+    if(last === "TREE"){
+      triggerScatterExplosion();
+    }
+  });
+}
+
+if(btnZoom){
+  btnZoom.addEventListener("click", ()=>{
+    if(photoGroup.children.length === 0) return;
+    APP_STATE = "ZOOM";
+    zoomPhotoIndex = Math.floor(Math.random()*photoGroup.children.length);
+    statusEl.textContent = "ZOOM | pinch to grab & zoom photo";
+    statusEl.style.color = "#ff8888";
+  });
+}
+
 // 页面加载完后，自动从 img/ 文件夹读取默认照片
 window.addEventListener("load", loadInitialPhotos);
 
@@ -841,10 +885,11 @@ function detectGesture(lm){
   const pinch = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
   const openDist = Math.hypot(indexTip.x - pinkyTip.x, indexTip.y - pinkyTip.y);
 
-  const isOtherFingersBent = avg > 0.10 && avg < 0.32;
+  // 适度放宽阈值：握拳更容易被识别，但仍与捏合 / 张开区分
+  const isOtherFingersBent = avg > 0.08 && avg < 0.34;
   const isPinch = (pinch < 0.08) && (openDist > 0.12) && isOtherFingersBent;
-  const isFist = (avg < 0.22) && (openDist < 0.17) && (pinch > 0.12);
-  const isOpen = avg > 0.25 && openDist > 0.21;
+  const isFist = (avg < 0.24) && (openDist < 0.18) && (pinch > 0.10);
+  const isOpen = avg > 0.27 && openDist > 0.22;
 
   const handX = wrist.x;
 
