@@ -974,13 +974,11 @@ function detectGesture(lm){
 function setupMediaPipe(){
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
     const loader = document.getElementById("loader");
-    loader.innerHTML = `<div style="text-align:center;max-width:520px;line-height:1.6">
-      <div style="font-size:18px;margin-bottom:10px;color:#ffdf00">当前环境无法访问摄像头</div>
-      <div style="color:#bbb;letter-spacing:1px">
-        请使用支持摄像头的现代浏览器，并通过 <b>HTTPS</b> 或本机 <b>localhost</b> 打开本页面。
-      </div>
-      <div style="margin-top:14px;color:#ffdf00;opacity:.9">你仍可上传照片并观看粒子树效果。</div>
-    </div>`;
+    // 不再用大面积遮罩文案卡住页面，只在状态栏提示
+    loader.style.opacity = 0;
+    setTimeout(()=>loader.remove(), 800);
+    statusEl.textContent = "当前环境无法访问摄像头，可直接使用下方按钮和上传照片体验圣诞树。";
+    statusEl.style.color = "#ffdf00";
     return;
   }
 
@@ -1020,11 +1018,10 @@ function setupMediaPipe(){
   }).catch((err)=>{
     console.error("Camera start failed:", err);
     const loader=document.getElementById("loader");
-    loader.innerHTML = `<div style="text-align:center;max-width:520px;line-height:1.6">
-      <div style="font-size:18px;margin-bottom:10px;color:#ffdf00">无法启动摄像头 / 手势识别</div>
-      <div style="color:#bbb;letter-spacing:1px">请允许浏览器摄像头权限，或使用 HTTPS / localhost 运行。</div>
-      <div style="margin-top:14px;color:#ffdf00;opacity:.9">你仍可上传照片并观看粒子树效果。</div>
-    </div>`;
+    loader.style.opacity = 0;
+    setTimeout(()=>loader.remove(), 800);
+    statusEl.textContent = "无法启动摄像头，你仍可用下方按钮控制圣诞树并上传照片。";
+    statusEl.style.color = "#ffdf00";
   });
 }
 
